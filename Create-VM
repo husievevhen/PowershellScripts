@@ -1,0 +1,422 @@
+  # .SYNOPSIS
+  #          Скрипт powershell для создания виртуальных машин
+  #  .DESCRIPTION
+  #          Данный скипт предназначен для создания виртуальных машин
+  #        под windows server 2016(desktop и core) 1 и 2 поколения
+  #       Данный скрипт имеет параметризацию в большинстве своем 
+  #         со значениями по умолчанию.
+  # .NOTES
+  #     PowerShell 5.
+  # .EXAMPLE
+  # C:\Users\lovebikso\Desktop\JobScript\HOST\BigScript\CreateVM.ps1 -VMName Test -Vhd 'Add VHD later' -Generation 2
+  # Создается виртуальная машина Test второго попоколения, в которую не будет добавлен жесткий диск
+  # .EXAMPLE
+  # C:\Users\lovebikso\Desktop\JobScript\HOST\BigScript\CreateVM.ps1 -VMName Test -Vhd 'new vhd' -Generation 1 -MemoryStartUpBytes 6gb
+  # Создает виртуальную машину Test первого поколения со значение виртуальной оперативной памяти в 6GB
+  # .EXAMPLE
+  # C:\Users\lovebikso\Desktop\JobScript\HOST\BigScript\CreateVM.ps1 -VMName VMTWO -Vhd 'Attach Existing VHD' -Generation 2 -MemoryStartUpBytes 3gb
+  # После выполнения скрипта вас попросит указать папку, где хранится виртуальный жесткий диск, затем указываете имя самого диска
+  # Если все указали верно, создасться виртуальная машина второго поколения с подключенным жестким диском из другой папки 
+
+
+[Cmdletbinding()]
+param(
+      [Parameter(Mandatory=$true)]                                                #Name virtual machine
+      [ValidateNotNullorEmpty() ]
+            [string]$VMName,                                                      
+      [Parameter(Mandatory=$false)]                                               #Logical Bool variable for changing path vm and vhd($true - Yes; $false - No)
+      [ValidateNotNullorEmpty()]
+            [switch]$Path = $false,                                               
+      [Parameter(Mandatory=$false)]                                               #Defaul Path VM(Default - D:\Hyper-V)
+      [ValidateNotNullOrEmpty()]
+            [string]$VMPath = "D:\Hyper-V",                                       
+      [Parameter(Mandatory=$false)]                                               #Default Path VHD(Default - D:\vhdLocation)
+      [ValidateNotNullOrEmpty()]
+            [string]$VhdPath = "D:\vhdLocation",                                  
+      [Parameter(Mandatory=$false)]                                               #Virtual Machine Generation(default - 2)
+      [ValidateSet(1,2)]        
+            [Int16]$Generation = 2,                                               
+      [Parameter(Mandatory=$false)]                                               #Default size memory(RAM - 4GB)                                                                                        
+      [ValidateNotNullOrEmpty()]
+            [string]$MemoryStartupBytes = 4GB,                                                                       
+      [Parameter(Mandatory=$false)]                                               #Size VHD(default - 10 gb) 
+      [ValidateNotNullOrEmpty()]
+            [string]$VHDMemoryStartUpBytes = 10GB,                                
+      [Parameter(Mandatory=$false)]                                               #Use dynamic memory(RAM) (default - true)
+      [Switch]$DynamicMemory = $true,                                             
+      [Parameter(Mandatory=$false)]                                               #Count processor
+      [ValidateSet(1,2,3,4,5,6)]                                                  
+            [Int16]$ProcessoCount = 2,
+      [Parameter(Mandatory=$false)]                                               #Enable or Disable Nested Virtualization on VM(defautlt - $false)
+      [ValidateSet($true, $false)]
+            [bool]$VirtualizationExtensions = $false,                             
+      [Parameter(Mandatory=$false)]                                               #Add VM Switch to VM?(default - false)
+            [switch]$VirtualSwitch = $true,                                       
+      [Parameter(Mandatory=$false)]                                               #Name of Switch
+      [ValidateNotNullOrEmpty()]
+            [string]$VMSwitch = "InternalSwitch",                                 
+      [Parameter(Mandatory=$true)]                                                #VHD Parameter(4 ways - Create new vhd, Attach already existing vhd, copy existing vhd and add VHD later)
+      [ValidateSet("New Vhd", "Attach Existing VHD", "Copy-VHD", "Add VHD later")]
+            [string]$VHD,                                                         
+      [Parameter(Mandatory=$false)]                                               #Installation Windows (default:D:\isoFolder\windowsserver2016\ )
+            [string]$IsoPath = "D:\isoFolder\windowsserver2016.ISO",              
+      [Parameter(Mandatory=$false)]                                               #Variable for starting virtual machine(if u dont need this choose $false)
+      [ValidateSet($true, $false)]
+            [switch]$StartVM = $true                                              
+)
+
+
+
+
+
+#VM name verification
+[System.Array] $AllVm = ((Get-VM -Name *).Name) 
+if($AllVm -match $VMName)
+{
+    Write-Host "ERROR NAME
+VM IS ALREADY EXIST:" -ForegroundColor Red 
+    foreach($l in $AllVm)
+    {
+        Write-Host($l.ToUpper()) -ForegroundColor Green
+    }
+
+    $flag = $true
+    while($flag -eq $true)
+        {   
+            $VmName = Read-Host -Prompt "Re-enter the name of the virtual machine"
+            $flag = $false
+            if($i = 0 -ne $AllVm.Count)
+            {
+                for($i = 0; $i -le $AllVm.Count; $i++)
+                {
+                if($VmName -eq $AllVm[$i])
+                    {
+                        Write-Host("Such a virtual machine already exists")
+                        $flag = $true
+                    if($VmName -ne $AllVm[$i]) 
+                    {
+                        Write-Host("The name of the virtual machine is created.")
+                        $flag = $false
+                    }
+                }
+            }
+        }
+        elseif($i = 0 -eq $AllVm.Count)
+        {
+            Write-Host("No other virtual machine has been created. The name was successfully added")
+            $flag = $false
+        }
+    }
+}
+else
+{
+    Write-Host "The name was created successfully"
+}
+
+#Default path
+if($Path -eq $true)
+{
+    $VMPath = Read-Host -Prompt "Input VM path"
+    $VhdPath = Read-Host -Prompt "Input VHD path"
+    Get-VMHost | Set-VMHost -VirtualMachinePath $VMPath -VirtualHardDiskPath $VhdPath
+}
+
+
+
+
+#Memory(RAM)
+#Конвертирую значение строки в значение оперативной памяти
+$flag = $true
+while($flag -eq $true)
+{
+    Try
+    {
+        [UInt64] $NewMemoryStartUpBytes = [convert]::ToUInt64(($MemoryStartUpBytes/ 1GB) * 1GB)
+        Write-Host ("RAM OF VM  = " + $NewMemoryStartUpBytes) -ForegroundColor Green
+        $flag = $false
+    }
+    Catch [System.Management.Automation.RuntimeException]
+    {
+        Write-Error("Re-enter the memory size in the correct format (For example 4GB)")
+        $flag = $true
+    }
+}
+
+
+#VHD Size
+#Конвертирую значение строки в значение размера виртуального жесткого диска
+$flag = $true
+while($flag -eq $true)
+{
+Try
+    {
+        [UInt64] $NewVHDMemoryStartUpBytes = [convert]::ToUInt64(($VHDMemoryStartUpBytes/ 1GB) * 1GB)
+        Write-Host ("Memory of VHD = " + $NewVHDMemoryStartUpBytes) -ForegroundColor Green
+        $flag = $false
+    }
+    Catch [System.Management.Automation.RuntimeException]
+    {
+        Write-Error("Re-enter the memory size in the correct format (For example 4GB)")
+        $flag = $true
+    }
+}
+
+
+
+if($Generation -eq 1)
+{
+    Try
+    {
+        switch($VHD)
+        {
+            "New Vhd" {
+                            New-Vm -Name $VMName -Path $VmPath -MemoryStartupBytes $NewMemoryStartUpBytes -Generation 1 
+                            Set-VMDvdDrive -VMName $VMName -Path $IsoPath
+                            if($VirtualSwitch -eq $true)
+                            {
+                                Connect-VMNetworkAdapter -VMName $VMName -SwitchName $VMSwitch
+                            }
+                            if($DynamicMemory -eq $true)
+                            {
+                                Set-VM -Name $VMName -ProcessorCount 2 -DynamicMemory 
+                            }
+                            else
+                            {
+                                Set-VM -Name $VMName -ProcessorCount 2
+                            }
+                            Set-VM -Name $VMName -ProcessorCount 2 -DynamicMemory  
+                            
+                            Set-VMProcessor -VMName $VMName -ExposeVirtualizationExtensions $VirtualizationExtensions -
+                            New-VHD -Path "$VhdPath\$VMName.vhd" -SizeBytes $NewVHDMemoryStartUpBytes 
+                            
+                            Add-VMHardDiskDrive -VMName $VmName -Path "$VhdPath\$VMName.vhd"
+                           
+                            if($StartVM -eq $true)
+                            {       
+                                Start-Job { Start-Vm -Name $VMName } 
+                            }
+                    }
+            "Attach Existing VHD" {
+                                    $ExistingVHDPATH = Read-Host -Prompt "Enter path vhd"     #Path of the existing VHD
+                                    $NameVHD = Read-Host -Prompt "Enter vhd name"             #Vhd Name
+                                    Set-VMDvdDrive -VMName $VMName -Path $IsoPath
+                                    New-VM -Name $VmName -Path $VMPath -Generation 1 -MemoryStartupBytes $NewMemoryStartUpBytes -VHDPath "$ExistingVHDPATH\$NameVHD.vhd"
+                                    if($VirtualSwitch -eq $true)
+                                    {
+                                        Connect-VMNetworkAdapter -VMName $VMName -SwitchName $VMSwitch
+                                    }
+                                    if($DynamicMemory -eq $true)
+                                    {
+                                        Set-VM -Name $VMName -ProcessorCount 2 -DynamicMemory 
+                                    }
+                                    else
+                                    {
+                                        Set-VM -Name $VMName -ProcessorCount 2
+                                    }
+                                    Set-VM -Name $VMName -ProcessorCount 2 -DynamicMemory  
+                                    Set-VMProcessor -VMName $VMName -ExposeVirtualizationExtensions $VirtualizationExtensions 
+                                    if($StartVM -eq $true)
+                                    {       
+                                    Start-Vm -Name $VMName 
+                                    }
+                                    }
+            "Copy-VHD" {
+
+                                    $ParentPath = Read-Host -Prompt "Enter path vhd"     #Path of the existing VHD
+                                    $NameParentVHD = Read-Host -Prompt "Enter vhd name"             #Vhd Name
+
+                                    New-VHD -ParentPath "$ParentPath\$NameParentVHD.vhd" -Path "$VhdPath\$VmName.vhd" -Differencing
+                                    New-Vm -Name $VmName -MemoryStartupBytes $NewMemoryStartUpBytes -Generation 1 -VHDPath "$VhdPath\$VmName.vhd" -Path "$VmPath\$VmName" 
+                                    Set-VMDvdDrive -VMName $VMName -Path $IsoPath
+                                    if($VirtualSwitch -eq $true)
+                                    {
+                                        Connect-VMNetworkAdapter -VMName $VMName -SwitchName $VMSwitch
+                                    }
+                                    if($DynamicMemory -eq $true)
+                                    {
+                                        Set-VM -Name $VMName -ProcessorCount 2 -DynamicMemory 
+                                    }
+                                    else
+                                    {
+                                        Set-VM -Name $VMName -ProcessorCount 2
+                                    }
+                                    Set-VM -Name $VMName -ProcessorCount 2 -DynamicMemory  
+                                    Set-VMProcessor -VMName $VMName -ExposeVirtualizationExtensions $VirtualizationExtensions 
+
+                                    if($StartVM -eq $true)
+                                    {       
+                                        Start-Vm -Name $VMName 
+                                    }
+
+            }
+            "Add VHD later" {
+                            New-Vm -Name $VMName -Path $VMPath -Generation 1 -NoVHD -MemoryStartupBytes $NewMemoryStartUpBytes 
+                            Set-VMDvdDrive -VMName $VMName -Path $IsoPath
+                            if($VirtualSwitch -eq $true)
+                            {
+                                Connect-VMNetworkAdapter -VMName $VMName -SwitchName $VMSwitch
+                            }
+                            if($DynamicMemory -eq $true)
+                            {
+                                Set-VM -Name $VMName -ProcessorCount $ProcessoCount -DynamicMemory 
+                            }
+                            else
+                            {
+                                Set-VM -Name $VMName -ProcessorCount $ProcessoCount
+                            }
+                                Set-VMProcessor -VMName $VMName -ExposeVirtualizationExtensions $VirtualizationExtensions
+                            if($StartVM -eq $true)
+                            {       
+                                Start-Vm -Name $VMName 
+                            }
+                        }
+
+             }
+    }
+    catch
+    {
+       # Write-Error($_.Exception.Message)
+    }
+}
+elseif($Generation -eq 2)
+{
+    Try
+    {
+        switch($VHD)
+        {
+            "New Vhd"              {
+                            New-Vm -Name $VMName -Path $VmPath -MemoryStartupBytes $NewMemoryStartUpBytes -Generation 2  
+                            Add-VMScsiController -VMName $VMName
+                            Add-VMDvdDrive -VMName $VMName
+                            Set-VMDvdDrive -VMName $VMName -Path $IsoPath
+                            if($VirtualSwitch -eq $true)
+                            {
+                                Connect-VMNetworkAdapter -VMName $VMName -SwitchName $VMSwitch
+                            }
+                            if($DynamicMemory -eq $true)
+                            {
+                                Set-VM -Name $VMName -ProcessorCount 2 -DynamicMemory 
+                            }
+                            else
+                            {
+                                Set-VM -Name $VMName -ProcessorCount 2
+                            }
+                            Set-VM -Name $VMName -ProcessorCount 2 -DynamicMemory  
+                            Set-VMProcessor -VMName $VMName -ExposeVirtualizationExtensions $VirtualizationExtensions 
+                            New-VHD -Path "$VhdPath\$VMName.vhdx" -SizeBytes $NewVHDMemoryStartUpBytes 
+                            Add-VMHardDiskDrive -VMName $VmName -Path "$VhdPath\$VMName.vhdx"
+                            $network = Get-VMNetworkAdapter -VMName $VmName
+                            $vhd = Get-VMHardDiskDrive -VMName $VmName
+                            $dvd = Get-VMDvdDrive -VMName $VmName
+                            Set-VMFirmware -VMName $VmName -BootOrder $vhd,$dvd,$network
+                            #if($StartVM -eq $true)
+                            #{       
+                                Start-Vm -Name $VMName 
+                            #}
+                       }
+            "Attach Existing VHD"  {
+                                #local variables
+                                $ExistingVHDPATH = Read-Host -Prompt "Enter path vhd"     #Path of the existing VHD
+                                $NameVHD = Read-Host -Prompt "Enter vhd name"             #Vhd Name
+
+                                New-VM -Name $VmName -Path $VMPath -Generation 2 -MemoryStartupBytes $NewMemoryStartUpBytes -VHDPath "$ExistingVHDPATH\$NameVHD.vhdx"
+                                Add-VMScsiController -VMName $VMName
+                                Add-VMDvdDrive -VMName $VMName
+                                Set-VMDvdDrive -VMName $VMName -Path $IsoPath
+                                if($VirtualSwitch -eq $true)
+                                {
+                                    Connect-VMNetworkAdapter -VMName $VMName -SwitchName $VMSwitch
+                                }
+                                if($DynamicMemory -eq $true)
+                                {
+                                    Set-VM -Name $VMName -ProcessorCount 2 -DynamicMemory 
+                                }
+                                else
+                                {
+                                    Set-VM -Name $VMName -ProcessorCount 2
+                                }
+                                Set-VM -Name $VMName -ProcessorCount 2 -DynamicMemory  
+                                Set-VMProcessor -VMName $VMName -ExposeVirtualizationExtensions $VirtualizationExtensions 
+                                $network = Get-VMNetworkAdapter -VMName $VmName
+                                $vhd = Get-VMHardDiskDrive -VMName $VmName
+                                $dvd = Get-VMDvdDrive -VMName $VmName
+                                Set-VMFirmware -VMName $VmName -BootOrder $vhd,$dvd,$network
+                                if($StartVM -eq $true)
+                                {       
+                                    Start-Vm -Name $VMName 
+                                }
+                            }
+            "Copy-VHD"             {
+                                $ParentPath = Read-Host -Prompt "Enter path vhd"     #Path of the existing VHD
+                                $NameParentVHD = Read-Host -Prompt "Enter vhd name"             #Vhd Name
+
+                                New-VHD -ParentPath "$ParentPath\$NameParentVHD.vhdx" -Path "$VhdPath\$VmName.vhdx" -Differencing
+                                New-Vm -Name $VmName -MemoryStartupBytes $NewMemoryStartUpBytes -Generation 2 -VHDPath "D:\vhdLocation\$VmName.vhdx" -Path "D:\Hyper-V\$VmName" 
+                                Add-VMScsiController -VMName $VMName
+                                Add-VMDvdDrive -VMName $VMName
+                                Set-VMDvdDrive -VMName $VMName -Path $IsoPath
+                                if($VirtualSwitch -eq $true)
+                                {
+                                    Connect-VMNetworkAdapter -VMName $VMName -SwitchName $VMSwitch
+                                }
+                                if($DynamicMemory -eq $true)
+                                {
+                                    Set-VM -Name $VMName -ProcessorCount 2 -DynamicMemory 
+                                }
+                                else
+                                {
+                                    Set-VM -Name $VMName -ProcessorCount 2
+                                }
+                                Set-VM -Name $VMName -ProcessorCount 2 -DynamicMemory  
+                                Set-VMProcessor -VMName $VMName -ExposeVirtualizationExtensions $VirtualizationExtensions 
+
+                                $network = Get-VMNetworkAdapter -VMName $VmName
+                                $vhd = Get-VMHardDiskDrive -VMName $VmName
+                                $dvd = Get-VMDvdDrive -VMName $VmName
+                                Set-VMFirmware -VMName $VmName -BootOrder $vhd,$dvd,$network
+                                if($StartVM -eq $true)
+                                {       
+                                    Start-Vm -Name $VMName 
+                                }
+            
+                       }
+            "Add VHD later"        {
+                            New-Vm -Name $VMName -Path $VMPath -Generation 2 -NoVHD -MemoryStartupBytes $NewMemoryStartUpBytes 
+                            Add-VMScsiController -VmName $VMName
+                            Set-VMDvdDrive -VMName $VMName -Path $IsoPath
+                            if($VirtualSwitch -eq $true)
+                            {
+                                Connect-VMNetworkAdapter -VMName $VMName -SwitchName $VMSwitch
+                            }
+                            if($DynamicMemory -eq $true)
+                            {
+                                Set-VM -Name $VMName -ProcessorCount $ProcessoCount -DynamicMemory 
+                            }
+                            else
+                            {
+                            Set-VM -Name $VMName -ProcessorCount $ProcessoCount
+                            }
+                            Set-VMProcessor -VMName $VMName -ExposeVirtualizationExtensions $VirtualizationExtensions
+                            if($StartVM -eq $true)
+                            {       
+                             Start-Vm -Name $VMName 
+                            }
+            }
+
+        }
+    }
+    catch
+    {
+       # Write-Error($_.Exception.Message)
+    }    
+}
+else
+{
+    Write-Host "Loh"
+}
+
+
+
+
+
+
