@@ -412,7 +412,6 @@ elseif($Generation -eq 2)
 }
 else
 {
-    Write-Host "Loh"
 }
 
 
