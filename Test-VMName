@@ -1,0 +1,43 @@
+param(
+        [Parameter(Mandatory=$true, ValueFromPipeLine=$true)]
+        [ValidateNotNullOrEmpty()]
+             [string]$VmName
+      )
+[System.Array] $AllVm = ((Get-VM -Name *).Name) 
+if($AllVm -match $VMName)
+{
+        Write-Host "ERROR NAME
+VM IS ALREADY EXIST:" -ForegroundColor Red 
+    foreach($l in $AllVm)
+    {
+        Write-Host($l.ToUpper()) -ForegroundColor Green
+    }
+    $flag = $true
+    while($flag -eq $true)
+    {   
+        $VmName = Read-Host -Prompt "Re-enter the name of the virtual machine"
+        $flag = $false
+        if($i = 0 -ne $AllVm.Count)
+        {
+            for($i = 0; $i -le $AllVm.Count; $i++)
+            {
+                if($VmName -eq $AllVm[$i])
+                {
+                    Write-Host("Such a virtual machine already exists")
+                    $flag = $true
+                    if($VmName -ne $AllVm[$i]) 
+                    {
+                        Write-Host("The name of the virtual machine is created.")
+                        $flag = $false
+                    }
+                }
+            }
+        }
+    }
+}
+else
+{
+    Write-Host "The name was created successfully"
+}
+
+$VmName
