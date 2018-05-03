@@ -1,11 +1,26 @@
-﻿[Cmdletbinding()]
+<#
+.SYNOPSIS
+
+Скрипт для экспорта виртуальной машины.
+Возможно экспортировать 1 виртуальную машину или все сразу
+
+.DESCRIPTION
+
+.PARAMETER VmName
+Имя экспортируемой виртуальной машины.
+
+.Paramter NetworkPath
+Пусть экспорта виртуальной машины
+
+
+#>
+
+[Cmdletbinding()]
 param(
     [Parameter(Mandatory=$false)]
         [string] $VmName = "Test1",
     [Parameter(Mandatory=$false)]
-        [string] $NetworkPath = "D:\export",
-    [Parameter(Mandatory=$false)]
-        [string] $logs = "D:\export\ExportInfo.txt"
+        [string] $NetworkPath = "D:\export"
 )
 
 
