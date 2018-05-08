@@ -1,4 +1,6 @@
-﻿[Cmdletbinding()]
+#function ExportVMfunction.psd1 need to import before using ex_vm_v2.ps1
+
+[Cmdletbinding()]
 param(
     [Parameter(Mandatory=$false)]
         [string] $VmName,
