@@ -1,8 +1,8 @@
 ﻿param(
     [Parameter(Mandatory=$false)]
-        [string]$UserName = "lovebikso",
+        [string]$UserName = "login",
     [Parameter(Mandatory=$false)]
-        [string]$Password = "zaq1XSW@cde3",
+        [string]$Password = "password",
     [Parameter(Mandatory=$false)]
         [string]$NewCompName = "Computer",
     [Parameter(Mandatory=$false)]
