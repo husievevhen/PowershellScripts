@@ -11,7 +11,7 @@
 
 
 Try{
- Select-String -Path $FileName -Pattern $CustomError -Context $LinesBefore, $LinesAfter
+ Select-String -Path $FileName -Pattern $CustomError -Context $LinesBefore, $LinesAfter | ForEach-Object {$_.Line} 
 }
 Catch{
     Write-Host "I believe that what doesn’t kill simply makes you stranger...."
