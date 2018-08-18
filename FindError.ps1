@@ -10,9 +10,7 @@
     )
 
 
-
 Try{
-
  Select-String -Path $FileName -Pattern $CustomError -Context $LinesBefore, $LinesAfter
 }
 Catch{
