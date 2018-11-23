@@ -40,4 +40,4 @@ else
     Write-Host "The name was created successfully"
 }
 
-$VmName
+Write-Host($VmName + " is valid. You can create vm with this name"
